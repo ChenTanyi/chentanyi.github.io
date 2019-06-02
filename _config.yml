@@ -3,11 +3,11 @@
 ## Source: https://github.com/hexojs/hexo/
 
 # Site
-title: Hexo
-subtitle:
-description:
-keywords:
-author: John Doe
+title: Note
+subtitle: 有空写写
+description: write something
+keywords: note
+author: Tanyi Chen
 language:
 timezone:
 
