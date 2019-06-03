@@ -2,6 +2,7 @@
 title: 使用 Hexo + Next 构建 Blog
 date: 2019-06-02 23:08:50
 tags: sample
+categories: nothing
 ---
 # 这是一个测试 Blog，介绍如何构建此 Blog
 
