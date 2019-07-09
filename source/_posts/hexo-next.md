@@ -53,4 +53,4 @@ hexo d
 
 * 在 &lt;username&gt;.github.io 中查看
 
-> 可以把上述过程放到 ci 中生成 travis-ci 或 appveyor，只需要把 ssh 换成 github token 即可，不过由于每次都要进行测试，因为我不采用 ci 方式部署
+> 可以把上述过程放到 ci 中生成 travis-ci 或 appveyor，只需要把 ssh 换成 github token 即可，不过由于每次生成的时候，都要进行测试，所以我会直接在测试完直接 deploy，而不采用 ci 方式部署
