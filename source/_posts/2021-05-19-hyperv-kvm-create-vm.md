@@ -79,7 +79,7 @@ Hyper-V 需要在 windows 功能里面打开，在 win 10 里直接搜索 hyper-
 
 2. 安装 common package:
     ```bash
-    sudo apt install qemu-kvm libvirt-daemon-system bridge-utils
+    sudo apt install -y qemu-kvm libvirt-daemon-system bridge-utils
     sudo usermod -aG libvirt $USER
     sudo usermod -aG kvm $USER
     ```
@@ -94,7 +94,7 @@ Hyper-V 需要在 windows 功能里面打开，在 win 10 里直接搜索 hyper-
 连接虚拟机时， `virt-manager` 也一样会打开一个图形界面操作虚拟机，因此没有什么需要详细说明的。
 
 ```bash
-sudo apt install virt-manager
+sudo apt install -y virt-manager
 virt-manager
 ```
 
@@ -113,10 +113,18 @@ ubuntu 虚拟机嵌 ubuntu 虚拟机的效果如下：
 下面只给出一个安装 debian 最简单的例子，其他高级技巧请参考 [docs](https://linux.die.net/man/1/virt-install)
 
 ```bash
-sudo apt install virtinst
-virt-install --name vm --memory 1024 --vcpus 1 --disk path=$HOME/vm.disk,size=15 --location $HOME/debian-10.9.0-amd64-netinst.iso --graphics none --extra-args console=ttyS0
+sudo apt install -y virtinst
+
+# 启动全局的网络配置
+export LIBVIRT_DEFAULT_URI="qemu:///system"
+virsh net-start default && virsh net-autostart default
+
+# 安装 vm 并从 iso 启动
+virt-install --name vm --memory 1024 --vcpus 1 --disk path=$HOME/vm.disk,size=15 --location $HOME/debian-10.9.0-amd64-netinst.iso --network bridge:virbr0 --graphics none --extra-args console=ttyS0
+
 # 如果要开窗口安装如 ubuntu desktop 系统可以用下面命令
-# virt-install --name vm --memory 1024 --vcpus 1 --disk path=$HOME/vm.disk,size=15 --cdrom $HOME/ubuntu-20.04.2.0-desktop-amd64.iso --graphics vnc
+# virt-install --name vm --memory 1024 --vcpus 1 --disk path=$HOME/vm.disk,size=15 --cdrom $HOME/ubuntu-20.04.2.0-desktop-amd64.iso --network bridge:virbr0 --graphics vnc,listen=0.0.0.0
+# sudo apt install -y xtightvncviewer && vncviewer localhost
 ```
 
 其余的 VM 操作基本都通过 `virsh` 完成，这边举一些简单的例子，高级技巧请参考 [docs](https://linux.die.net/man/1/virsh)
@@ -128,7 +136,7 @@ virsh console vm # 进入 vm 的命令行，一样是 Ctrl + ] 退出
 virsh start vm # 启动 vm
 virsh shutdown vm # 关闭 vm
 virsh destroy vm # 强杀 vm （相当于直接断电）
-virsh undefine vm --remove-storage # 删除 vm 与对应的硬盘
+virsh undefine vm # 删除 vm
 ```
 
 ### 网络与 DNS
@@ -136,9 +144,17 @@ virsh undefine vm --remove-storage # 删除 vm 与对应的硬盘
 KVM 的网络配置主要与宿主机的访问相关，我们可以直接使用虚拟机 IP 进行访问，也可以通过 libvirt 的 DNS 服务直接使用虚拟机机器名访问。
 
 1. 如果要获取 VM 的 IP，可以通过 `virsh domiflist vm` 获取 vm 的所有网卡以及对应的 MAC，然后通过 `arp -n | grep $MAC` 可以获得对应 MAC 的 IP 地址。当然，如果虚拟机的网络不是桥接的，可以直接通过 `virsh domifaddr vm --source arp` 得到所有网卡对应的 MAC 和 IP。
+    * 如果需要 NAT 模式的静态 IP 的话，可以通过 `virsh net-edit default` 把 `<dhcp>` 改成下面这种样子，然后 `virsh net-destroy default && virsh net-start default`。
+    ```xml
+    <dhcp>
+        <range start='192.168.122.100' end='192.168.122.254' />
+        <host mac='52:54:00:50:65:74' name='vm' ip='192.168.122.11' />
+    </dhcp>
+    ```
+    * 如果需要阻止 vm 联网，可以在 `virsh edit vm` 里面把网卡 `<interface>` 注释掉（最好通过 `virsh dumpxml vm > vm.xml` 备份与 `virsh define vm.xml` 还原）。
 2. libvirt 的 DNS 服务默认地址为 192.168.122.1（可以通过 `virsh net-edit default` 进行修改），通过下面命令注册 DNS 服务器，就可以直接使用虚拟机的机器名访问到对应的虚拟机了。
     ```bash
-    sudo apt install resolvconf
+    sudo apt install -y resolvconf
     echo "nameserver 192.168.122.1" | sudo tee -a /etc/resolvconf/resolv.conf.d/head
     sudo resolvconf -u
     ```
@@ -154,4 +170,5 @@ KVM 的网络配置主要与宿主机的访问相关，我们可以直接使用�
 * https://linuxize.com/post/how-to-install-kvm-on-ubuntu-20-04/
 * https://www.cyberciti.biz/faq/howto-linux-delete-a-running-vm-guest-on-kvm/
 * https://unix.stackexchange.com/questions/33191/how-to-find-the-ip-address-of-a-kvm-virtual-machine-that-i-can-ssh-into-it
+* https://serverfault.com/questions/627238/kvm-libvirt-how-to-configure-static-guest-ip-addresses-on-the-virtualisation-ho
 * https://help.ubuntu.com/community/KVM/Networking
