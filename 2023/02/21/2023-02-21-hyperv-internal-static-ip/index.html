@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN,en,default">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"chentanyi.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"flat"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="使用 Hyper-V 或者 KVM 的虚拟机的时候，我一般会通过 SSH 或者 RDP 进行访问，这样不同虚拟机的使用体验相对统一，不依赖具体 VM 管理软件的功能。只要配置好网络，就和正常使用服务器一样（不考虑有些公司内的虚机限制联网的情况）。因此，我们需要先来配置合适的网络满足我们的需求。 网络选择在之前 KVM 网络里面介绍了两种网络的拓扑，Bridge 和 NAT，两者最大的区别在于是否多">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hyper-V 配置内网固定 IP">
+<meta property="og:url" content="https://chentanyi.github.io/2023/02/21/2023-02-21-hyperv-internal-static-ip/index.html">
+<meta property="og:site_name" content="Note">
+<meta property="og:description" content="使用 Hyper-V 或者 KVM 的虚拟机的时候，我一般会通过 SSH 或者 RDP 进行访问，这样不同虚拟机的使用体验相对统一，不依赖具体 VM 管理软件的功能。只要配置好网络，就和正常使用服务器一样（不考虑有些公司内的虚机限制联网的情况）。因此，我们需要先来配置合适的网络满足我们的需求。 网络选择在之前 KVM 网络里面介绍了两种网络的拓扑，Bridge 和 NAT，两者最大的区别在于是否多">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://chentanyi.github.io/img/OS/VM/switch_manager_static.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/OS/VM/share_network.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/OS/VM/eth_static_config.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/OS/VM/vm_static_adapter_settings.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/OS/VM/static_ip_in_vm.png">
+<meta property="article:published_time" content="2023-02-21T10:11:30.000Z">
+<meta property="article:modified_time" content="2023-03-02T03:19:46.772Z">
+<meta property="article:author" content="Tanyi Chen">
+<meta property="article:tag" content="VM">
+<meta property="article:tag" content="Network">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://chentanyi.github.io/img/OS/VM/switch_manager_static.png">
+
+<link rel="canonical" href="https://chentanyi.github.io/2023/02/21/2023-02-21-hyperv-internal-static-ip/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Hyper-V 配置内网固定 IP | Note</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Note</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">有空写写</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/chentanyi" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://chentanyi.github.io/2023/02/21/2023-02-21-hyperv-internal-static-ip/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Tanyi Chen">
+      <meta itemprop="description" content="write something">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Note">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Hyper-V 配置内网固定 IP
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-21 18:11:30" itemprop="dateCreated datePublished" datetime="2023-02-21T18:11:30+08:00">2023-02-21</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-03-02 11:19:46" itemprop="dateModified" datetime="2023-03-02T11:19:46+08:00">2023-03-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Network/" itemprop="url" rel="index"><span itemprop="name">Network</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>使用 Hyper-V 或者 KVM 的虚拟机的时候，我一般会通过 SSH 或者 RDP 进行访问，这样不同虚拟机的使用体验相对统一，不依赖具体 VM 管理软件的功能。只要配置好网络，就和正常使用服务器一样（不考虑有些公司内的虚机限制联网的情况）。因此，我们需要先来配置合适的网络满足我们的需求。</p>
+<h1 id="网络选择"><a href="#网络选择" class="headerlink" title="网络选择"></a>网络选择</h1><p>在之前 <a href="/2022/05/04/2022-05-01-kvm-bridge/">KVM 网络</a>里面介绍了两种网络的拓扑，Bridge 和 NAT，两者最大的区别在于是否多了一层子网，因为子网内的机器正常情况下无法被外面的其他机器访问到，因此选择的时候最主要考虑的就是这个点。</p>
+<ol>
+<li><strong>Default NAT</strong>: Hyper-V 和 KVM 都会在安装完成后自动创建一个带 NAT 的子网。KVM 创建的是固定的 IP 段，还可以再自行修改到想要的 IP 段；而 Hyper-V 创建的 IP 段会在每次重启时发生变化，如果要使用固定的 IP 段，需要每次都重新配置一下，相当麻烦。</li>
+<li><strong>Bridge</strong>: 在可以搭建 Bridge 网络的情况下，我倾向使用 Bridge 网络，这种情况下，VM 和宿主机有相同的连通性，可以配置成一个类似整个局域网的设备，如旁路由。但是，Bridge 网络有着麻烦的前置条件，就是需要破坏宿主机已有的网络，并且依赖外部的路由器，一般适合用在家里能物理访问到的机器上，不用担心网络出问题了连不上。普通家用路由器的情况下，一般路由器的 DHCP 都会根据 MAC 分配固定的 IP，当然自己也可以手动指定一个不冲突的 IP。</li>
+<li><strong>Static NAT</strong>: 这个是专门针对 Hyper-V 的，因为 KVM 默认就是 Static NAT，不需要在单独配置。Hyper-V 可以通过新建一个虚拟交换机来分配固定的 IP 段，使得虚拟机可以配置固定的 IP。</li>
+</ol>
+<p>因此，我一般在本地主机选择 Bridge，而使用服务器是会选 Static NAT。其实我之前<a href="/2021/05/19/2021-05-19-hyperv-kvm-create-vm/">配置 VM</a> 的时候，也会选择配置主机名，经过局域网广播后，可以通过主机名直接访问而不需要关心 IP，但这个只有在局域网直连时有用，做一些特殊配置（如 proxy）的时候就可能会比较麻烦。</p>
+<h1 id="网络配置"><a href="#网络配置" class="headerlink" title="网络配置"></a>网络配置</h1><h2 id="Bridge"><a href="#Bridge" class="headerlink" title="Bridge"></a>Bridge</h2><p>Hyper-V 配置 Bridge 网络很简单，只要在创建虚拟交换机的时候选择<code>外部网络(External)</code>，就会自动配置完成，然后在 VM 设置里面指定对应的交换机即可。</p>
+<h2 id="Static-NAT"><a href="#Static-NAT" class="headerlink" title="Static NAT"></a>Static NAT</h2><p>接下来就是主要讲讲配置 Static NAT 的一些步骤</p>
+<ol>
+<li><p>在 Hyper-V 的虚拟交换机里面添加一个<code>内部网络(Internal)</code>来配置 NAT，我把它的名字设置为 <code>Static</code></p>
+ <img src="/img/OS/VM/switch_manager_static.png" /></li>
+<li><p>打开适配器页面，选择当前联网的适配器，打开属性，选择分享网络给这个 NAT 交换机（这个步骤比较关键，做完才能让这个 NAT 访问外网）</p>
+<blockquote>
+<p>每个适配器只能分享网络给一个适配器，所以如果需要分享给多个适配器，需要选择这些适配器，右键桥接（Bridge），然后分享网络给这个网桥</p>
+</blockquote>
+ <img src="/img/OS/VM/share_network.png" /></li>
+<li><p>选择 <code>Static</code> 适配器，打开属性中的 <code>IPv4</code>，适配器的 IP 段默认会被改成 <code>192.168.137.0/24</code>，可以自己改成其他的 IP 段（比如我改成 <code>192.168.100.1</code>）。要记住这个适配器的 IP，是这个 NAT 网络的网关。</p>
+ <img src="/img/OS/VM/eth_static_config.png" /></li>
+<li><p>新建 VM 或打开已有的 VM 的设置，将网络适配器修改为 <code>Static</code>（如果没有网络适配器可以从添加硬件里面新建一个）。</p>
+ <img src="/img/OS/VM/vm_static_adapter_settings.png" /></li>
+<li><p>打开 VM，将网络手动配置成 <code>Static</code> 适配器所在的 IP 段，并且选择一个不冲突的内网 IP（下面还是展示 Windows 的配置）。</p>
+ <img src="/img/OS/VM/static_ip_in_vm.png" /></li>
+</ol>
+<p>经过上述步骤，就完成了 VM 内网固定 IP 的配置，并且也可以连接外网服务。只要适配器没有被修改，VM 的 IP 就可以一直保持不变 。</p>
+<h1 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h1><ul>
+<li><a target="_blank" rel="noopener" href="https://stackoverflow.com/questions/63449007/how-to-prevent-the-ip-address-of-hyper-v-virtual-switch-from-being-changed">https://stackoverflow.com/questions/63449007/how-to-prevent-the-ip-address-of-hyper-v-virtual-switch-from-being-changed</a></li>
+<li><a target="_blank" rel="noopener" href="http://jimmoldenhauer.blogspot.com/2016/05/hyper-v-internal-network-with-internet.html">http://jimmoldenhauer.blogspot.com/2016/05/hyper-v-internal-network-with-internet.html</a></li>
+<li><a target="_blank" rel="noopener" href="https://superuser.com/questions/1374913/how-to-use-a-windows-pc-to-share-multiple-network-connections">https://superuser.com/questions/1374913/how-to-use-a-windows-pc-to-share-multiple-network-connections</a></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/VM/" rel="tag"># VM</a>
+              <a href="/tags/Network/" rel="tag"># Network</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/07/13/2022-07-13-debug-kubernetes-network/" rel="prev" title="Debug Kubernetes Network Timeout">
+      <i class="fa fa-chevron-left"></i> Debug Kubernetes Network Timeout
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E9%80%89%E6%8B%A9"><span class="nav-number">1.</span> <span class="nav-text">网络选择</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E9%85%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text">网络配置</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Bridge"><span class="nav-number">2.1.</span> <span class="nav-text">Bridge</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Static-NAT"><span class="nav-number">2.2.</span> <span class="nav-text">Static NAT</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Reference"><span class="nav-number">3.</span> <span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Tanyi Chen</p>
+  <div class="site-description" itemprop="description">write something</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">8</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/chentanyi" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;chentanyi" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:chentanyi@gmail.com" title="E-Mail → mailto:chentanyi@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Tanyi Chen</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

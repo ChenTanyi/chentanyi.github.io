@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN,en,default">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"chentanyi.github.io","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"right","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"flat"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="！！！警告 ：本文的 demo 仅为原理展示，没有任何安全认证，不建议长时间直接暴露在外网使用。（直接使用后果自负）  Proxy 是一种特殊的网络服务，服务器不提供内容服务，而是进行流量转发。Proxy 可以用于：网络加速、访问限制与突破、隐藏IP、负载均衡等场景 Serverless 是一个云服务概念，通过对后端计算资源的隐藏，可以方便地部署特定的 HTTP 服务，并且大部分的 server">
+<meta property="og:type" content="article">
+<meta property="og:title" content="通过 Serverless 服务简易地搭建一个 Proxy">
+<meta property="og:url" content="https://chentanyi.github.io/2021/05/02/2021-05-02-severless-proxy/index.html">
+<meta property="og:site_name" content="Note">
+<meta property="og:description" content="！！！警告 ：本文的 demo 仅为原理展示，没有任何安全认证，不建议长时间直接暴露在外网使用。（直接使用后果自负）  Proxy 是一种特殊的网络服务，服务器不提供内容服务，而是进行流量转发。Proxy 可以用于：网络加速、访问限制与突破、隐藏IP、负载均衡等场景 Serverless 是一个云服务概念，通过对后端计算资源的隐藏，可以方便地部署特定的 HTTP 服务，并且大部分的 server">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/create_resource_1.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/create_resource_2.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/create_resource_3.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/create_resource_4.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/webapp.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/v2ray_click.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/v2ray_powershell.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/curl.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/proxy.png">
+<meta property="og:image" content="https://chentanyi.github.io/img/Azure/Proxy/ipaddress.png">
+<meta property="article:published_time" content="2021-05-02T12:13:04.000Z">
+<meta property="article:modified_time" content="2023-03-02T03:19:46.772Z">
+<meta property="article:author" content="Tanyi Chen">
+<meta property="article:tag" content="Proxy">
+<meta property="article:tag" content="Serverless">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://chentanyi.github.io/img/Azure/Proxy/create_resource_1.png">
+
+<link rel="canonical" href="https://chentanyi.github.io/2021/05/02/2021-05-02-severless-proxy/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>通过 Serverless 服务简易地搭建一个 Proxy | Note</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Note</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">有空写写</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/chentanyi" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://chentanyi.github.io/2021/05/02/2021-05-02-severless-proxy/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Tanyi Chen">
+      <meta itemprop="description" content="write something">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Note">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          通过 Serverless 服务简易地搭建一个 Proxy
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-05-02 20:13:04" itemprop="dateCreated datePublished" datetime="2021-05-02T20:13:04+08:00">2021-05-02</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-03-02 11:19:46" itemprop="dateModified" datetime="2023-03-02T11:19:46+08:00">2023-03-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Proxy/" itemprop="url" rel="index"><span itemprop="name">Proxy</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p><strong><em>！！！警告</em></strong> ：本文的 demo 仅为原理展示，没有任何安全认证，不建议长时间直接暴露在外网使用。（直接使用后果自负）</p>
+</blockquote>
+<p><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Proxy_server">Proxy</a> 是一种特殊的网络服务，服务器不提供内容服务，而是进行流量转发。Proxy 可以用于：网络加速、访问限制与突破、隐藏IP、负载均衡等场景</p>
+<p><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Serverless_computing">Serverless</a> 是一个云服务概念，通过对后端计算资源的隐藏，可以方便地部署特定的 HTTP 服务，并且大部分的 serverless 服务提供入口的 HTTPS 服务保证通信安全，使得用户不需要自行申请与安装 HTTPS 证书</p>
+<p>所有能通过 HTTP/ws (Websockt 可以兼容 HTTP) 协议提供服务的 Proxy 都可以使用该方式搭建（不过，由于标准的 HTTP Proxy 协议不与负载均衡层如 nginx 兼容，故不可直接使用）</p>
+<p>本文会介绍如何简易地搭建一个 Websocket + HTTP Proxy 的服务，我们使用的 proxy 服务是 <a target="_blank" rel="noopener" href="https://github.com/abhinavsingh/proxy.py">proxy.py</a>，websocket 服务是 <a target="_blank" rel="noopener" href="https://github.com/novnc/websockify">websockify</a> —— 它会以 websocket 协议监听一个 TCP 端口，并将收到的所有消息转发到另一个 TCP 端口上，从而实现了在 HTTP Proxy 的外面套上 Websocket 协议</p>
+<h1 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h1><p><a target="_blank" rel="noopener" href="https://www.docker.com/">Docker</a> 是一个 Linux 容器相关的工具，具有强大的可移植性，不受宿主机的运行环境影响，可以方便地在不同云服务商之间切换，大部分大型云服务商都会提供基于容器的 Serverless 服务。推荐大家使用 docker 运行 serverless 服务</p>
+<p>我已经构建好一个 demo 用的 docker 镜像 <a target="_blank" rel="noopener" href="https://hub.docker.com/r/chentanyi/simple-proxy">chentanyi/simple-proxy</a>，当然你也可以选择用下面的 Dockerfile 构建自己的 docker 镜像:</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> python:alpine</span><br><span class="line"><span class="keyword">run</span><span class="language-bash"> apk add --no-cache --virtual .build-deps g++ &amp;&amp; \</span></span><br><span class="line"><span class="language-bash">    pip install --no-cache-dir proxy.py websockify &amp;&amp; \</span></span><br><span class="line"><span class="language-bash">    apk del .build-deps &amp;&amp; \</span></span><br><span class="line"><span class="language-bash">    <span class="built_in">printf</span> <span class="string">&quot;proxy --hostname 0.0.0.0 --port 8899 &amp;\nwebsockify 80 :8899&quot;</span> &gt; /start.sh</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">cmd</span><span class="language-bash"> [<span class="string">&quot;sh&quot;</span>, <span class="string">&quot;-c&quot;</span>, <span class="string">&quot;chmod +x /start.sh &amp;&amp; /start.sh&quot;</span>]</span></span><br></pre></td></tr></table></figure>
+
+<p>这个 docker 会在启动的时候运行两个服务：<code>proxy</code> 运行在后台，监听 8899 端口，提供 HTTP Proxy 服务；<code>websockify</code> 运行在前台，监听 80 端口，提供 websocket 服务，并将消息传到 8899 的 HTTP Proxy 上。两者通过 <code>start.sh</code> 启动</p>
+<p>docker 具体使用不做过多展开，可以参考其他文章，我们的具体操作并不依赖 docker 相关知识（如果大家有需求我也可以另写一篇介绍介绍）</p>
+<h1 id="Azure-App-Service"><a href="#Azure-App-Service" class="headerlink" title="Azure App Service"></a>Azure App Service</h1><p>具体的 Serverless 服务使用 Azure App Service 中的 Web App 作为例子（因为我只使用过这一个），Web App 要求 docker 监听标准 HTTP 端口 80 或者通过配置 <code>WEBSITES_PORT</code> 指定对应的 HTTP 端口</p>
+<p>要使用 Azure 服务之前，必须要有一个 Azure 账号和可以创建资源的 Subscription。如果没有并想尝试的话，可以注册一个账号，使用 Azure 提供的 <a target="_blank" rel="noopener" href="https://azure.microsoft.com/free/">1年+$200</a> 的试用服务</p>
+<h2 id="Java-SDK"><a href="#Java-SDK" class="headerlink" title="Java SDK"></a>Java SDK</h2><blockquote>
+<p>非开发者请跳到下面 <a href="#Portal">Portal</a></p>
+</blockquote>
+<p>对于开发者，可以使用 SDK / Cli 进行 Web App 的创建，这里以 <a target="_blank" rel="noopener" href="https://github.com/Azure/azure-sdk-for-java/tree/master/sdk/resourcemanager">Java SDK</a> 为例，在做完认证之后，可以非常简单地使用以下代码创建对应的 Web App:</p>
+<blockquote>
+<p>webappName 与最终的网址相关，必须为全局唯一（如果与别人重名的话，创建时会报错）</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">azure.webApps().define(webappName)</span><br><span class="line">    .withRegion(region)</span><br><span class="line">    .withNewResourceGroup(resourceGroupName)</span><br><span class="line">    .withNewLinuxPlan(appServicePlanName, pricingTier)</span><br><span class="line">    .withPublicDockerHubImage(<span class="string">&quot;chentanyi/simple-proxy&quot;</span>)</span><br><span class="line">    .create();</span><br></pre></td></tr></table></figure>
+
+<p>当然我也写好了 <a target="_blank" rel="noopener" href="https://github.com/tanyi-samples/azure-webapp-simple-proxy">demo project</a>，在 JDK 8 以上和 maven 的环境下，修改变量后就可以直接 <code>mvn exec:java</code> 跑起来了</p>
+<h2 id="Portal"><a href="#Portal" class="headerlink" title="Portal"></a>Portal</h2><p>对于普通用户，可以选择使用 <a target="_blank" rel="noopener" href="https://portal.azure.com/">Azure Portal</a> 创建 Web App（截图使用的是英文版的 portal，中文版界面应该类似）</p>
+<ol>
+<li><p>在 portal 页面，点击创建，选择 Web App</p>
+ <img src="/img/Azure/Proxy/create_resource_1.png" />
+ <img src="/img/Azure/Proxy/create_resource_2.png" /></li>
+<li><p>依次填写必要的信息，如果然后选择 <code>create/创建</code></p>
+ <img src="/img/Azure/Proxy/create_resource_3.png" />
+ <img src="/img/Azure/Proxy/create_resource_4.png" /></li>
+<li><p>等大概几分钟 Web App 创建完成后，我们的服务就搭建好了，需要点进 Web App 页面，复制对应的网址以便后面连接使用</p>
+ <img src="/img/Azure/Proxy/webapp.png" /></li>
+</ol>
+<h1 id="Client"><a href="#Client" class="headerlink" title="Client"></a>Client</h1><p>由于我们建的不是一个标准的 HTTP Proxy 服务，因此我们无法用大部分工具自带的 HTTP Proxy 进行连接，因此我们需要在本地搭建一个服务，将标准 HTTP Proxy 放到 websocket 里进行传输。</p>
+<p>最简单的操作是类似 websockify 写一个把 TCP 发送到 websocket 的服务，但因为没找到著名的开源项目可以完成该操作，因此我们使用 <a target="_blank" rel="noopener" href="https://github.com/v2fly/v2ray-core">v2ray</a> 来完成类似的需求。</p>
+<p>v2ray 是一个强大的网络工具平台，可以实现许多 Proxy 的解析与转换，我们可以通过它将发出的 HTTP Proxy 或 Socks Proxy 转换为 Websoket + HTTP Proxy 再传到我们搭建好的 Serverless 服务上，这样我们就可以打通整条链路以实现 Proxy 功能。</p>
+<h2 id="Windows-x64"><a href="#Windows-x64" class="headerlink" title="Windows x64"></a>Windows x64</h2><p>由于 v2ray 的 <a target="_blank" rel="noopener" href="https://github.com/v2fly/v2ray-core/releases">release</a> 有几乎全平台的版本，使用方式基本一致，因此这里仅用 windows x64 平台作展示（移动端不能直接跑 golang 程序，请自行在商店查找对应的移动版）</p>
+<p>直接下载 windows x64 对应的<a target="_blank" rel="noopener" href="https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-windows-64.zip">下载包</a>并解压到合适的位置即可，其中我们唯一需要修改的是 <code>config.json</code></p>
+<h3 id="Config"><a href="#Config" class="headerlink" title="Config"></a>Config</h3><p>v2ray 有非常多的 config 可以配置，我们这个 demo 仅会用到它的 inbound 和 outbound 进行传入和传出协议的转换，再加上 log 显示出来就足够了，以下是 config 样式，直接粘贴到 <code>config.json</code> 内（要先把已有内容删除），并将 <code>&quot;proxy-demo-webapp.azurewebsites.net&quot;</code> 修改为上面 Portal 复制出来的网址即可（网址需要把前面的<code>https://</code>和后面的<code>/</code>都删掉）</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;log&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;loglevel&quot;</span><span class="punctuation">:</span> <span class="string">&quot;warning&quot;</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;inbounds&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;port&quot;</span><span class="punctuation">:</span> <span class="number">8000</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;protocol&quot;</span><span class="punctuation">:</span> <span class="string">&quot;http&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;outbounds&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;protocol&quot;</span><span class="punctuation">:</span> <span class="string">&quot;http&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;settings&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;servers&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">          <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;address&quot;</span><span class="punctuation">:</span> <span class="string">&quot;proxy-demo-webapp.azurewebsites.net&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;port&quot;</span><span class="punctuation">:</span> <span class="number">443</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">]</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;streamSettings&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;network&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ws&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;security&quot;</span><span class="punctuation">:</span> <span class="string">&quot;tls&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>简单介绍下上面的配置详情：inbound 和 outbound 是链路最重要的部分，inbound 负责监听不同端口对应的 proxy 协议，比如 HTTP，然后解包出相应的内容，并将其包装成另外的 proxy 协议从 outbound 送出，outbound 的 proxy 需要有服务器的地址与端口，从而将 TCP 送到对应的服务器上。如果有多个 outbound，需要自行定义不同的路由规则以匹配不同的 outbound（inbound 由端口匹配，而 outbound 只能通过规则匹配）。在 proxy 的基础上，还可以为其套上不同的传输协议，如我们用到的 websocket，因为我们 webapp 的 docker 前面还有 LB 层的 TLS，因此我们的传出协议在 ws 的基础上还需要有加密协议 tls。</p>
+<h3 id="Test"><a href="#Test" class="headerlink" title="Test"></a>Test</h3><p>修改完 <code>config.json</code> 后，双击 <code>v2ray.exe</code> 便可以启动 v2ray。（如果闪退了，可以按住 shift + 右键，打开 powershell，并跑 <code>./v2ray.exe</code>，看对应的报错）</p>
+<img src="/img/Azure/Proxy/v2ray_click.png" />
+<img src="/img/Azure/Proxy/v2ray_powershell.png" />
+
+<blockquote>
+<p>比如我上面的截图就是意味着某一个 inbound 监听的端口 8000 不可用了，可能需要换个端口</p>
+</blockquote>
+<p>按照我们上面的配置，只需要设置 HTTP Proxy 为本地 8000 端口就可以了，我们可以简单地采用 curl 测试：</p>
+<img src="/img/Azure/Proxy/curl.png" />
+
+<p>当然我们也可以通过<a target="_blank" rel="noopener" href="https://www.kuaidaili.com/doc/using/win10/">修改系统代理</a>的方式用浏览器进行测试：</p>
+<img src="/img/Azure/Proxy/proxy.png" />
+<img src="/img/Azure/Proxy/ipaddress.png" />
+
+<p>可以看到，使用代理后我们的出口 IP 变成了 Azure 大阪的 IP 了，就意味着我们的 Proxy 搭建成功了</p>
+<p>不过由于 webapp 是第一次请求时才启动的（免费版请求后服务也不是常驻的），代理请求可能会有一定的延迟</p>
+<blockquote>
+<p>这就是全部 demo 的内容，有什么相关问题欢迎在 <a target="_blank" rel="noopener" href="https://github.com/chentanyi/chentanyi.github.io/issues">github issue</a> 提出</p>
+</blockquote>
+<h1 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h1><p>这个 demo 写起来有点长，不过正常操作起来应该是很快就可以完成的，得到的是可以使用的不带认证的代理，意味着这个代理的所有信息都暴露在外网，请不要用作测试以外的任何用途。如果想要更安全稳定的服务，请自行修改配置搭建 Proxy 服务。</p>
+<p>其实本来想写写最近玩了哪些代理与自动化脚本，后来想想人在屋檐下，还是不写太傻瓜化的东西了，防止人没了（当然这个 demo 还是傻瓜化，只是直接用会有问题），而且网上已经有太多教程了，不如在介绍使用的过程中多聊聊一些基本的原理，想要布一个稳定的 Proxy 最好还是基于自己对于网络和协议的理解。</p>
+<p>PS: v2ray 是个功能很强大的代理网络工具，配置特别复杂，可以实现很多代理功能，具体可以参考官网文档 <a target="_blank" rel="noopener" href="https://www.v2fly.org/">https://www.v2fly.org/</a></p>
+<p>PPS: v2ray 也可以一个工具充当 websokect + proxy 的角色运用到 webapp 的服务内，可以参考<a target="_blank" rel="noopener" href="https://ibcl.us/Heroku-V2Ray_20191014/">别人的文档</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Proxy/" rel="tag"># Proxy</a>
+              <a href="/tags/Serverless/" rel="tag"># Serverless</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/04/24/2021-04-24-efi-ubuntu-delete/" rel="prev" title="从 Win + Ubuntu 中删除 Ubuntu 系统及 UEFI 引导">
+      <i class="fa fa-chevron-left"></i> 从 Win + Ubuntu 中删除 Ubuntu 系统及 UEFI 引导
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/05/19/2021-05-19-hyperv-kvm-create-vm/" rel="next" title="用 Hyper-V/KVM 搭建与测试虚拟机">
+      用 Hyper-V/KVM 搭建与测试虚拟机 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Docker"><span class="nav-number">1.</span> <span class="nav-text">Docker</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Azure-App-Service"><span class="nav-number">2.</span> <span class="nav-text">Azure App Service</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Java-SDK"><span class="nav-number">2.1.</span> <span class="nav-text">Java SDK</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Portal"><span class="nav-number">2.2.</span> <span class="nav-text">Portal</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Client"><span class="nav-number">3.</span> <span class="nav-text">Client</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Windows-x64"><span class="nav-number">3.1.</span> <span class="nav-text">Windows x64</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Config"><span class="nav-number">3.1.1.</span> <span class="nav-text">Config</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Test"><span class="nav-number">3.1.2.</span> <span class="nav-text">Test</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%90%8E%E8%AE%B0"><span class="nav-number">4.</span> <span class="nav-text">后记</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Tanyi Chen</p>
+  <div class="site-description" itemprop="description">write something</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">8</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/chentanyi" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;chentanyi" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:chentanyi@gmail.com" title="E-Mail → mailto:chentanyi@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Tanyi Chen</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
